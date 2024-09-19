@@ -1,5 +1,5 @@
-#ifndef shm_boiler_plate
-#define shm_boiler_plate
+#ifndef SHM_BOILER_PLATE_H
+#define SHM_BOILER_PLATE_H
 #include <unistd.h>
 
 void randname(char *buf);

@@ -1,5 +1,4 @@
-#define _POSIX_C_SOURCE 200112L
-
+#include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <fcntl.h>
@@ -17,6 +16,7 @@
 #include "/usr/include/cairo/cairo.h"
 
 #include "shared_memory_boiler_plate.h"
+#include "./particle.h"
 
 // ----------------------- WAYLAND -----------------------
 struct client_state {
@@ -30,13 +30,9 @@ struct client_state {
     // z-shell
     struct zwlr_layer_shell_v1 *zshell;
     struct zwlr_layer_surface_v1 *zsurface;
+    //
+    uint32_t callback_time;
 };
-
-typedef struct {
-    double x;
-    double y;
-    double r;
-} Particle;
 
 struct animation_state {
     Particle *particles;
@@ -46,6 +42,8 @@ struct animation_state {
     cairo_pattern_t *grad;
     cairo_surface_t *surface;
     cairo_t *cr;
+    uint32_t previous_time;
+    uint32_t frames;
 };
 
 struct animation_state ani_state = { NULL };
@@ -129,12 +127,25 @@ static struct wl_buffer * draw_frame(struct client_state *state) {
 
     // ------------------------ CAIRO ------------------------
     // Clear surface here
+    uint32_t time = state->callback_time;
+    if(ani_state.previous_time == 0) ani_state.previous_time = time;
+    ani_state.frames += 1;
+    if(time - ani_state.previous_time >= 1000)
+    {
+        printf("FPS: %u\n", 1000 * ani_state.frames / (time - ani_state.previous_time));
+        ani_state.previous_time = time;
+        ani_state.frames = 0;
+    }
+
     ani_state.surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, ani_state.width, ani_state.height);
     ani_state.cr = cairo_create(ani_state.surface);
     cairo_set_source(ani_state.cr, ani_state.grad);
 
     for(int i=0; i<ani_state.len; ++i)
     {
+        if(!particle_rule_circle_cutoff(2, ani_state.particles+i)) 
+            particle_rule_geometric_approach(30.0, ani_state.particles+i);
+
         cairo_arc(ani_state.cr, ani_state.particles[i].x, ani_state.particles[i].y, ani_state.particles[i].r, 0, 2 * 3.1415);
         cairo_fill(ani_state.cr);
     }
@@ -158,6 +169,7 @@ static void wl_surface_frame_done(void *data, struct wl_callback *cb, uint32_t t
     cb = wl_surface_frame(state->wl_surface);
     wl_callback_add_listener(cb, &wl_surface_frame_listener, state);
 
+    state->callback_time = time;
 
     struct wl_buffer *buffer = draw_frame(state);
     wl_surface_attach(state->wl_surface, buffer, 0, 0);
@@ -193,6 +205,8 @@ static const struct zwlr_layer_surface_v1_listener zwlr_layer_surface_listener =
 };
 
 
+// Move shit to ani_state init function
+// Also move everything animation related out of main
 int main(int argc, char *argv[]) {
     ani_state.len = 1000;
     ani_state.particles = malloc(sizeof(Particle) * ani_state.len);
@@ -203,20 +217,14 @@ int main(int argc, char *argv[]) {
     }
     ani_state.width = 1920;
     ani_state.height = 1280;
-    for(int i=0; i<ani_state.len; ++i)
-    {
-        ani_state.particles[i].r = 5;
-        ani_state.particles[i].x = rand() % ani_state.width;
-        ani_state.particles[i].y = rand() % ani_state.height;
-    }
+    particle_multi_init(ani_state.width, ani_state.height, ani_state.len, ani_state.particles);
 
     ani_state.grad = cairo_pattern_create_linear(0, 0, ani_state.width, ani_state.height);
     cairo_pattern_add_color_stop_rgb(ani_state.grad, 0, 1.0, (6*16+9)/255.0, (11*16+4)/255.0);
     cairo_pattern_add_color_stop_rgb(ani_state.grad, 0, 1.0, 0.0, (7*16+2)/255.0);
 
-    /* ani_state.surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, ani_state.width, ani_state.height); */
-    /* ani_state.cr = cairo_create(ani_state.surface); */
-    /* cairo_set_source(ani_state.cr, ani_state.grad); */
+    ani_state.frames = 0;
+    ani_state.previous_time = 0;
 
     // Wayland setup
     struct client_state state = { 0 };
