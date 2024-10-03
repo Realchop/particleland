@@ -13,7 +13,6 @@
 
 #include "../protocols/xdg-shell.h"
 #include "../protocols/wlr_shell.h"
-#include "/usr/include/cairo/cairo.h"
 
 #include "shared_memory_boiler_plate.h"
 #include "./particle.h"
@@ -39,9 +38,6 @@ struct animation_state {
     int len;
     int width;
     int height;
-    cairo_pattern_t *grad;
-    cairo_surface_t *surface;
-    cairo_t *cr;
     uint32_t previous_time;
     uint32_t frames;
 };
@@ -82,25 +78,6 @@ static const struct wl_registry_listener wl_registry_listener = {
 // ------------------------- DRAW ------------------------
 static const struct wl_callback_listener wl_surface_frame_listener;
 
-void fill_buffer_from_cairo(cairo_surface_t *surface, uint32_t *data, int width, int height) {
-    cairo_surface_flush(surface);
-    unsigned char *cairo_data = cairo_image_surface_get_data(surface);
-
-    for(int y=0; y<height; ++y)
-    {
-        for(int x=0; x<width; ++x)
-        {
-            uint32_t curr = 0;
-            for(int o=0; o<4; ++o)
-            {
-               curr |= cairo_data[y * width * 4 + x*4 + o] << (8*o);
-            }
-
-            data[y * width + x] = curr;
-        }
-    }
-}
-
 static struct wl_buffer * draw_frame(struct client_state *state) {
     // ----------------------- MEM ALLOC -----------------------
     int stride = ani_state.width * 4;
@@ -137,24 +114,14 @@ static struct wl_buffer * draw_frame(struct client_state *state) {
         ani_state.frames = 0;
     }
 
-    ani_state.surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, ani_state.width, ani_state.height);
-    ani_state.cr = cairo_create(ani_state.surface);
-    cairo_set_source(ani_state.cr, ani_state.grad);
 
     for(int i=0; i<ani_state.len; ++i)
     {
         if(!particle_rule_circle_cutoff(2, ani_state.particles+i)) 
             particle_rule_geometric_approach(30.0, ani_state.particles+i);
 
-        cairo_arc(ani_state.cr, ani_state.particles[i].x, ani_state.particles[i].y, ani_state.particles[i].r, 0, 2 * 3.1415);
-        cairo_fill(ani_state.cr);
     }
 
-    // Have to convert from cairo surface data to our raw buffer
-    fill_buffer_from_cairo(ani_state.surface, data, ani_state.width, ani_state.height);
-
-    cairo_destroy(ani_state.cr);
-    cairo_surface_destroy(ani_state.surface);
     munmap(data, size);
     wl_buffer_add_listener(buffer, &wl_buffer_listener, NULL);
     // ------------------------- END -------------------------
@@ -218,10 +185,6 @@ int main(int argc, char *argv[]) {
     ani_state.width = 1920;
     ani_state.height = 1280;
     particle_multi_init(ani_state.width, ani_state.height, ani_state.len, ani_state.particles);
-
-    ani_state.grad = cairo_pattern_create_linear(0, 0, ani_state.width, ani_state.height);
-    cairo_pattern_add_color_stop_rgb(ani_state.grad, 0, 1.0, (6*16+9)/255.0, (11*16+4)/255.0);
-    cairo_pattern_add_color_stop_rgb(ani_state.grad, 0, 1.0, 0.0, (7*16+2)/255.0);
 
     ani_state.frames = 0;
     ani_state.previous_time = 0;
