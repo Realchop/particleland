@@ -1,3 +1,5 @@
+#include <SDL2/SDL_render.h>
+#include <SDL2/SDL_surface.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -10,6 +12,9 @@
 #include <unistd.h>
 
 #include <wayland-client.h>
+
+#include <SDL2/SDL.h>
+#include <SDL2/SDL2_gfxPrimitives.h>
 
 #include "../protocols/xdg-shell.h"
 #include "../protocols/wlr_shell.h"
@@ -78,6 +83,8 @@ static const struct wl_registry_listener wl_registry_listener = {
 // ------------------------- DRAW ------------------------
 static const struct wl_callback_listener wl_surface_frame_listener;
 
+// Vidi da li ovo map i unmap djubre moze da se drzi u memoriji
+// Kao NEMA dobrog razloga da ne moze 
 static struct wl_buffer * draw_frame(struct client_state *state) {
     // ----------------------- MEM ALLOC -----------------------
     int stride = ani_state.width * 4;
@@ -102,8 +109,7 @@ static struct wl_buffer * draw_frame(struct client_state *state) {
     close(fd);
     // ------------------------- END -------------------------
 
-    // ------------------------ CAIRO ------------------------
-    // Clear surface here
+    // ------------------------ DRAW -------------------------
     uint32_t time = state->callback_time;
     if(ani_state.previous_time == 0) ani_state.previous_time = time;
     ani_state.frames += 1;
@@ -114,13 +120,20 @@ static struct wl_buffer * draw_frame(struct client_state *state) {
         ani_state.frames = 0;
     }
 
+    SDL_Surface *surface = SDL_CreateRGBSurfaceFrom(data, ani_state.width, ani_state.height, 32, stride, 0, 0, 0, 0);
+    SDL_Renderer *renderer = SDL_CreateSoftwareRenderer(surface);
 
     for(int i=0; i<ani_state.len; ++i)
     {
         if(!particle_rule_circle_cutoff(2, ani_state.particles+i)) 
             particle_rule_geometric_approach(30.0, ani_state.particles+i);
 
+        filledCircleColor(renderer, ani_state.particles[i].x, ani_state.particles[i].y, ani_state.particles[i].r, 0xFF0000FF);
     }
+
+    SDL_RenderPresent(renderer);
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+    SDL_DestroyRenderer(renderer);
 
     munmap(data, size);
     wl_buffer_add_listener(buffer, &wl_buffer_listener, NULL);
@@ -161,9 +174,6 @@ static void zwlr_layer_surface_configure(void* data, struct zwlr_layer_surface_v
 static void zwlr_layer_surface_closed() {
     if(ani_state.particles != NULL)
         free(ani_state.particles);
-
-    /* cairo_destroy(ani_state.cr); */
-    /* cairo_surface_destroy(ani_state.surface); */
 }
 
 static const struct zwlr_layer_surface_v1_listener zwlr_layer_surface_listener = {
@@ -172,8 +182,6 @@ static const struct zwlr_layer_surface_v1_listener zwlr_layer_surface_listener =
 };
 
 
-// Move shit to ani_state init function
-// Also move everything animation related out of main
 int main(int argc, char *argv[]) {
     ani_state.len = 1000;
     ani_state.particles = malloc(sizeof(Particle) * ani_state.len);
@@ -210,6 +218,8 @@ int main(int argc, char *argv[]) {
 
     // Event loop
     while (wl_display_dispatch(state.wl_display)) {};
+
+    SDL_Quit();
 
     return 0;
 }
