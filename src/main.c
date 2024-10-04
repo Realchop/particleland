@@ -20,7 +20,8 @@
 #include "../protocols/wlr_shell.h"
 
 #include "shared_memory_boiler_plate.h"
-#include "./particle.h"
+#include "particle.h"
+#include "drawing_utils.h"
 
 // ----------------------- WAYLAND -----------------------
 struct client_state {
@@ -83,6 +84,7 @@ static const struct wl_registry_listener wl_registry_listener = {
 // ------------------------- DRAW ------------------------
 static const struct wl_callback_listener wl_surface_frame_listener;
 
+// FIX:
 // Vidi da li ovo map i unmap djubre moze da se drzi u memoriji
 // Kao NEMA dobrog razloga da ne moze 
 static struct wl_buffer * draw_frame(struct client_state *state) {
@@ -128,11 +130,12 @@ static struct wl_buffer * draw_frame(struct client_state *state) {
         if(!particle_rule_circle_cutoff(2, ani_state.particles+i)) 
             particle_rule_geometric_approach(30.0, ani_state.particles+i);
 
-        filledCircleColor(renderer, ani_state.particles[i].x, ani_state.particles[i].y, ani_state.particles[i].r, 0xFF0000FF);
+        uint32_t color = getGradientForCoordinates(0xFF69B4FF, 0XFF0072FF, 0, ani_state.particles[i].x, ani_state.particles[i].y, ani_state.width, ani_state.height); 
+
+        filledCircleColor(renderer, ani_state.particles[i].x, ani_state.particles[i].y, ani_state.particles[i].r, color);
     }
 
     SDL_RenderPresent(renderer);
-    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_DestroyRenderer(renderer);
 
     munmap(data, size);
