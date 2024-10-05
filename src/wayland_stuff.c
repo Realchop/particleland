@@ -63,10 +63,6 @@ static const struct wl_callback_listener wl_surface_frame_listener = {
 static void zwlr_layer_surface_configure(void* data, struct zwlr_layer_surface_v1 *surface, uint32_t serial, uint32_t width, uint32_t height) {
     struct client_state *state = data;
     zwlr_layer_surface_v1_ack_configure(surface, serial);
-   
-    struct wl_buffer *buffer = state->draw_frame(state);
-    wl_surface_attach(state->wl_surface, buffer, 0, 0);
-    wl_surface_commit(state->wl_surface);
 }
 
 static void zwlr_layer_surface_closed() {}
