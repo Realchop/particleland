@@ -15,13 +15,12 @@
 #include <SDL2/SDL_surface.h>
 
 #include <wayland-client.h>
-#include "wayland_stuff.h"
+#include "boring/wayland_stuff.h"
 
-#include "shared_memory_boiler_plate.h"
-#include "particle.h"
-#include "drawing_utils.h"
+#include "boring/shared_memory_boiler_plate.h"
+#include "animation/particle.h"
+#include "animation/drawing_utils.h"
 
-// ----------------------- WIP -----------------------
 struct animation_state {
     Particle *particles;
     int len;
@@ -36,6 +35,8 @@ struct animation_state ani_state = { NULL };
 // FIX:
 // Vidi da li ovo map i unmap djubre moze da se drzi u memoriji
 // Kao NEMA dobrog razloga da ne moze 
+// TODO: 
+// Namesti tako da bs deo ode u wayland a animacija deo ostane ovde
 static struct wl_buffer * draw_frame(struct client_state *state) {
     // ----------------------- MEM ALLOC -----------------------
     int stride = ani_state.width * 4;
@@ -110,14 +111,13 @@ int main(int argc, char *argv[]) {
     ani_state.previous_time = 0;
 
     // Wayland setup
-    struct client_state state = {0};
+    struct client_state state;
     wayland_setup(&state);
 
+    // Hook in our animation
     state.draw_frame = draw_frame;
 
     run_wayland(&state);
-
-    SDL_Quit();
 
     return 0;
 }

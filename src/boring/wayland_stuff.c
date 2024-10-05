@@ -2,7 +2,7 @@
 #include <string.h>
 
 #include <wayland-client.h>
-#include "../protocols/wlr_shell.h"
+#include "../../protocols/wlr_shell.h"
 
 #include "wayland_stuff.h"
 
