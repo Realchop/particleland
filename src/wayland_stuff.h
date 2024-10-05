@@ -21,3 +21,4 @@ const struct wl_buffer_listener *get_wl_buffer_listener(void);
 void wayland_setup(struct client_state *state);
 
 void run_wayland(struct client_state *state);
+
