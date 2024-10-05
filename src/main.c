@@ -1,23 +1,24 @@
+// clib
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <fcntl.h>
-#include <limits.h>
-#include <stdbool.h>
-#include <string.h>
 #include <sys/mman.h>
-#include <time.h>
-#include <unistd.h>
 
+// SDL2
 #include <SDL2/SDL.h>
-#include <SDL2/SDL2_gfxPrimitives.h>
 #include <SDL2/SDL_render.h>
 #include <SDL2/SDL_surface.h>
 
-#include <wayland-client.h>
-#include "boring/wayland_stuff.h"
+// SDL2_gfx
+#include <SDL2/SDL2_gfxPrimitives.h>
 
+// wayland
+#include <wayland-client.h>
+
+// Local
+#include "boring/wayland_stuff.h"
 #include "boring/shared_memory_boiler_plate.h"
+
 #include "animation/particle.h"
 #include "animation/drawing_utils.h"
 
