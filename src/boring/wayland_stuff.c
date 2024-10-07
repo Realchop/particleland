@@ -1,8 +1,14 @@
 #include <stdio.h>
 #include <string.h>
+#include <sys/mman.h>
+
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_render.h>
+#include <SDL2/SDL_surface.h>
 
 #include <wayland-client.h>
 #include "../../protocols/wlr_shell.h"
+#include "./shared_memory_boiler_plate.h"
 
 #include "wayland_stuff.h"
 
@@ -39,6 +45,56 @@ static const struct wl_registry_listener wl_registry_listener = {
     .global_remove = registry_global_remove,
 };
 
+static struct wl_buffer * draw_frame(struct client_state *state) {
+    // ----------------------- MEM ALLOC -----------------------
+    int stride = state->width * 4;
+    int size = stride * state->height;
+
+    int fd = allocate_shm_file(size);
+    if (fd == -1) {
+        return NULL;
+    }
+
+    uint32_t *data = mmap(NULL, size,
+            PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    if (data == MAP_FAILED) {
+        close(fd);
+        return NULL;
+    }
+
+    struct wl_shm_pool *pool = wl_shm_create_pool(state->wl_shm, fd, size);
+    struct wl_buffer *buffer = wl_shm_pool_create_buffer(pool, 0,
+            state->width, state->height, stride, WL_SHM_FORMAT_XRGB8888);
+    wl_shm_pool_destroy(pool);
+    close(fd);
+    // ------------------------- END -------------------------
+
+    // ------------------------ DRAW -------------------------
+    uint32_t time = state->callback_time;
+    if(state->previous_time == 0) state->previous_time = time;
+    state->frames += 1;
+    if(time - state->previous_time >= 1000)
+    {
+        printf("FPS: %u\n", 1000 * state->frames / (time - state->previous_time));
+        state->previous_time = time;
+        state->frames = 0;
+    }
+
+    SDL_Surface *surface = SDL_CreateRGBSurfaceFrom(data, state->width, state->height, 32, stride, 0, 0, 0, 0);
+    SDL_Renderer *renderer = SDL_CreateSoftwareRenderer(surface);
+
+    state->animation(renderer, surface, state);
+
+    SDL_RenderPresent(renderer);
+    SDL_DestroyRenderer(renderer);
+
+    munmap(data, size);
+    wl_buffer_add_listener(buffer, get_wl_buffer_listener(), NULL);
+    // ------------------------- END -------------------------
+
+    return buffer;
+}
+
 static const struct wl_callback_listener wl_surface_frame_listener;
 
 static void wl_surface_frame_done(void *data, struct wl_callback *cb, uint32_t time) {
@@ -50,7 +106,7 @@ static void wl_surface_frame_done(void *data, struct wl_callback *cb, uint32_t t
 
     state->callback_time = time;
 
-    struct wl_buffer *buffer = state->draw_frame(state);
+    struct wl_buffer *buffer = draw_frame(state);
     wl_surface_attach(state->wl_surface, buffer, 0, 0);
     wl_surface_damage_buffer(state->wl_surface, 0, 0, INT32_MAX, INT32_MAX);
     wl_surface_commit(state->wl_surface);
@@ -65,7 +121,7 @@ static void zwlr_layer_surface_configure(void* data, struct zwlr_layer_surface_v
     struct client_state *state = data;
     zwlr_layer_surface_v1_ack_configure(surface, serial);
 
-    struct wl_buffer *buffer = state->draw_frame(state);
+    struct wl_buffer *buffer = draw_frame(state);
     wl_surface_attach(state->wl_surface, buffer, 0, 0);
     wl_surface_damage_buffer(state->wl_surface, 0, 0, INT32_MAX, INT32_MAX);
     wl_surface_commit(state->wl_surface);
@@ -79,7 +135,22 @@ static const struct zwlr_layer_surface_v1_listener zwlr_layer_surface_listener =
 };
 
 // New
-void wayland_setup(struct client_state *state) {
+int wayland_setup(struct client_state *state) {
+    state->width = 1920;
+    state->height = 1280;
+    
+    state->len = 1000;
+    state->particles = malloc(sizeof(Particle) * state->len);
+    if(state->particles == NULL)
+    {
+        fprintf(stderr, "Particles malloc!\n");
+        return EXIT_FAILURE;
+    }
+    particle_multi_init(state->width, state->height, state->len, state->particles);
+
+    state->frames = 0;
+    state->previous_time = 0;
+    
     state->wl_display = wl_display_connect(NULL);
     state->wl_registry = wl_display_get_registry(state->wl_display);
     wl_registry_add_listener(state->wl_registry, &wl_registry_listener, state);
@@ -97,6 +168,8 @@ void wayland_setup(struct client_state *state) {
 
     // Surface draw
     wl_surface_commit(state->wl_surface);
+
+    return 0;
 }
 
 void run_wayland(struct client_state *state) {

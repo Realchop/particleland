@@ -1,5 +1,11 @@
 #include <stdint.h>
 
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_render.h>
+#include <SDL2/SDL_surface.h>
+
+#include "../animation/particle.h"
+
 struct client_state {
     /* Globals */
     struct wl_display *wl_display;
@@ -11,14 +17,22 @@ struct client_state {
     // z-shell
     struct zwlr_layer_shell_v1 *zshell;
     struct zwlr_layer_surface_v1 *zsurface;
+    // Window
+    int width;
+    int height;
+    // Animation stuff
+    Particle *particles;
+    int len;
+    uint32_t previous_time;
+    int frames;
+    void (*animation)(SDL_Renderer *renderer, SDL_Surface *surface, struct client_state *state);
     // Other
     uint32_t callback_time;
-    struct wl_buffer * (*draw_frame)(struct client_state *state);
 };
 
 const struct wl_buffer_listener *get_wl_buffer_listener(void);
 
-void wayland_setup(struct client_state *state);
+int wayland_setup(struct client_state *state);
 
 void run_wayland(struct client_state *state);
 
