@@ -3,6 +3,9 @@ if [ $# -lt 1 ]; then
  exit 1
 fi
 
-mkdir -p builds &&
-make version=$1 && make clean &&
+set -e
+
+mkdir -p builds 
+make version=$1
+make clean
 ./builds/$1
